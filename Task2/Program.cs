@@ -1,7 +1,4 @@
 ﻿using Npgsql;
-using System.Runtime.CompilerServices;
-using static Npgsql.Replication.PgOutput.Messages.RelationMessage;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 const string CONNECTION_STRING = "Host=dowdily-glamorous-malamute.data-1.use1.tembo.io;Port=5432;Username=postgres;Password=o26aDiEouQnd6CDS;Database=postgres";
 const string exitString = "exit";
@@ -42,17 +39,17 @@ using (var connection = new NpgsqlConnection(CONNECTION_STRING))
                 string tableName = prompt.ToLower().Substring(prompt.ToLower().IndexOf("from") + 5).Trim();
                 tableName = tableName.Split(' ')[0];
 
-                IList<string> columns = getColumnNames(tableName, connection);
+                IList<KeyValuePair<string, string>> columns = getColumnNames(tableName, connection);
 
-                printTable(command, columns);
+                printTable(command, columns.Select(x => x.Key).ToList());
             }
             else if (prompt != null && prompt.ToLower().StartsWith("select")) {
                 string tableName = prompt.ToLower().Substring(prompt.ToLower().IndexOf("from") + 5).Trim();
                 tableName = tableName.Split(' ')[0];
 
-                string[] columns = prompt.ToLower().Substring(prompt.ToLower().IndexOf("select") + 6).Trim().Split(",");
+                string[] columns = prompt.ToLower().Substring(prompt.ToLower().IndexOf("select") + 6).Trim().Split(",").Select(x => x.Trim()).ToArray();
 
-                columns[columns.Length - 1] = columns.Last().Trim().Split(' ')[0].Trim();
+                columns[columns.Length - 1] = columns.Last().Split(' ')[0].Trim();
                 printTable(command, columns);
             }
             else if (prompt != null && prompt.StartsWith(@"\t ")) {
@@ -68,22 +65,22 @@ using (var connection = new NpgsqlConnection(CONNECTION_STRING))
                 {
                     foreach (var constraint in constraints)
                     {
-                        Console.Write(constraint + ", ");
+                        Console.WriteLine("\t" + constraint + ", ");
                     }
                 }
 
                 Console.WriteLine("\n");
 
-                IList<string> columns = getColumnNames(tableName, connection);
+                IList<KeyValuePair<string, string>> columns = getColumnNames(tableName, connection);
                 Console.WriteLine("Columns:");
-                foreach (var column in columns)
+                foreach (KeyValuePair<string, string> column in columns)
                 {
-                    Console.Write(column + ", ");
+                    Console.WriteLine("\t" + column.Key + $" ({column.Value}), ");
                 }
 
-                Console.WriteLine("\n");
+                Console.WriteLine();
 
-                printTable(new NpgsqlCommand($"select * from {tableName}", connection), columns);
+                printTable(new NpgsqlCommand($"select * from {tableName}", connection), columns.Select(x => x.Key).ToList());
             }
             else if (prompt != null) {
                 using (var reader = command.ExecuteReader())
@@ -96,20 +93,21 @@ using (var connection = new NpgsqlConnection(CONNECTION_STRING))
         {
             Console.WriteLine("Error!");
             Console.WriteLine(ex.Message);
+            throw;
         }    
     } while (prompt.ToLower() != exitString);
 }
 
-static IList<string> getColumnNames(string tableName, NpgsqlConnection connection) {
+static IList<KeyValuePair<string, string>> getColumnNames(string tableName, NpgsqlConnection connection) {
     string tableColumnQuery = $@"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{tableName}';";
     var command = new NpgsqlCommand(tableColumnQuery, connection);
-    List<string> columns = new();
-
+    List<KeyValuePair<string, string>> columns = new();
+    
     using (var reader = command.ExecuteReader())
     {
         while (reader.Read())
         {
-            columns.Add(reader["column_name"].ToString());
+            columns.Add(new KeyValuePair<string, string>(reader["column_name"].ToString(), reader["data_type"].ToString()));
         }
     }
     return columns;
